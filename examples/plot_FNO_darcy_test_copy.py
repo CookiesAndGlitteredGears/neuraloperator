@@ -41,10 +41,12 @@ model = TFNO(n_modes=(16, 16),
              hidden_channels=32,
              projection_channels=64,
              factorization='tucker',
-             rank=0.42)
+             rank=0.42,
+             in_channels=1,
+             out_channels=1)
 model = model.to(device)
 
-
+# model(torch.tensor([[1.0,2.0]]))
 
 n_params = count_model_params(model)
 print(f'\nOur model has {n_params} parameters.')
