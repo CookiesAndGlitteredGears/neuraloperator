@@ -26,11 +26,15 @@ device = 'cpu'
 # %%
 # Loading the Navier-Stokes dataset in 128x128 resolution
 train_loader, test_loaders, data_processor = load_darcy_flow_small(
-        n_train=1000, batch_size=32, 
-        test_resolutions=[16, 32], n_tests=[100, 50],
+        n_train=10000, batch_size=128,
+        test_resolutions=[32, 32], n_tests=[1000, 500],
         test_batch_sizes=[32, 32],
         positional_encoding=True
 )
+train_loader.dataset.y, train_loader.dataset.x = train_loader.dataset.x, train_loader.dataset.y
+# test_loaders[16].dataset.x, test_loaders[16].dataset.y = test_loaders[16].dataset.y, test_loaders[16].dataset.x
+
+test_loaders[32].dataset.x, test_loaders[32].dataset.y = test_loaders[32].dataset.y, test_loaders[32].dataset.x
 data_processor = data_processor.to(device)
 
 
@@ -42,8 +46,9 @@ model = TFNO(n_modes=(16, 16),
              projection_channels=64,
              factorization='tucker',
              rank=0.42,
-             in_channels=1,
-             out_channels=1)
+             in_channels=3,
+             out_channels=1
+             )
 model = model.to(device)
 
 # model(torch.tensor([[1.0,2.0]]))
@@ -85,7 +90,7 @@ sys.stdout.flush()
 # %% 
 # Create the trainer
 trainer = Trainer(model=model,
-                  n_epochs=20,
+                  n_epochs=200,
                   device=device,
                   data_processor=data_processor,
                   wandb_log=False,
@@ -125,28 +130,28 @@ for index in range(3):
     data = test_samples[index]
     data = data_processor.preprocess(data, batched=False)
     # Input x
-    y = data['y']
-    # Ground-truth
     x = data['x']
+    # Ground-truth
+    y = data['y']
     # Model prediction
     out = model(x.unsqueeze(0))
 
     ax = fig.add_subplot(3, 3, index*3 + 1)
-    ax.imshow(x[0], cmap='gray')
+    ax.imshow(x[0], cmap='cubehelix')
     if index == 0: 
         ax.set_title('Input x')
     plt.xticks([], [])
     plt.yticks([], [])
 
     ax = fig.add_subplot(3, 3, index*3 + 2)
-    ax.imshow(y.squeeze())
+    ax.imshow(y.squeeze(),cmap='cubehelix')
     if index == 0: 
         ax.set_title('Ground-truth y')
     plt.xticks([], [])
     plt.yticks([], [])
 
     ax = fig.add_subplot(3, 3, index*3 + 3)
-    ax.imshow(out.squeeze().detach().numpy())
+    ax.imshow(out.squeeze().detach().numpy(), cmap='cubehelix')
     if index == 0: 
         ax.set_title('Model prediction')
     plt.xticks([], [])
