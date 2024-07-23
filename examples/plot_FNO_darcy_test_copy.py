@@ -9,7 +9,7 @@ to train a Tensorized Fourier-Neural Operator
 # %%
 # 
 
-import numpy
+import numpy as np
 import torch
 import matplotlib.pyplot as plt
 import sys
@@ -22,7 +22,26 @@ from neuralop import LpLoss, H1Loss
 
 device = 'cpu'
 
+def extract_boundary(nparray):
+    array_dim = nparray.shape
+    total_dimensions = len(array_dim)
+    flat_boundary_values = np.array([[]])
+    for d in range(total_dimensions):
+        dimension_len = array_dim[d]
+        boundary_array, unboundary_array = (
+            np.take(nparray, [0, dimension_len - 1], axis=d),
+            np.take(nparray, [x for x in range(dimension_len) if x not in [0,dimension_len - 1]],axis=d))
+        flat_boundary_values = np.append(flat_boundary_values, boundary_array.flatten())
+        array = unboundary_array
+    return flat_boundary_values
 
+def inject_data(nparray):
+    sample_loader = torch.tensor([])
+    for s in range(len(nparray)):
+        slice = torch.tensor(extract_boundary(nparray[s][0])).float()
+        slice = torch.reshape(slice, (1, 1, len(slice), 1))
+        sample_loader = torch.cat((sample_loader, slice), 0)
+    return sample_loader
 # %%
 # Loading the Navier-Stokes dataset in 128x128 resolution
 train_loader, test_loaders, data_processor = load_darcy_flow_small(
@@ -34,7 +53,18 @@ train_loader, test_loaders, data_processor = load_darcy_flow_small(
 train_loader.dataset.y, train_loader.dataset.x = train_loader.dataset.x, train_loader.dataset.y
 # test_loaders[16].dataset.x, test_loaders[16].dataset.y = test_loaders[16].dataset.y, test_loaders[16].dataset.x
 
-test_loaders[32].dataset.x, test_loaders[32].dataset.y = test_loaders[32].dataset.y, test_loaders[32].dataset.x
+# test_loaders[32].dataset.x, test_loaders[32].dataset.y = test_loaders[32].dataset.y, test_loaders[32].dataset.x
+test_loaders[32].dataset.x = inject_data(test_loaders[32].dataset.y)
+test_loaders[32].dataset.y = inject_data(test_loaders[32].dataset.x)
+
+# sample_loader = torch.tensor([])
+# for s in range(len(test_loaders[32].dataset.x)):
+#     slice = test_loaders[32].dataset.x[s][0]
+#     slice = torch.tensor(extract_boundary(slice))
+#     slice = torch.reshape(slice, (1, 1, len(slice), 1))
+#     sample_loader = torch.cat((sample_loader, slice), 0)
+
+
 data_processor = data_processor.to(device)
 
 
