@@ -9,7 +9,7 @@ to train a Tensorized Fourier-Neural Operator
 # %%
 # 
 
-import numpy
+import numpy as np
 import torch
 import matplotlib.pyplot as plt
 import sys
@@ -23,6 +23,7 @@ from neuralop import LpLoss, H1Loss
 device = 'cpu'
 
 
+
 # %%
 # Loading the Navier-Stokes dataset in 128x128 resolution
 train_loader, test_loaders, data_processor = load_darcy_flow_small(
@@ -31,6 +32,8 @@ train_loader, test_loaders, data_processor = load_darcy_flow_small(
         test_batch_sizes=[32, 32],
         positional_encoding=True
 )
+# train_loader.dataset.y, train_loader.dataset.x = train_loader.dataset.x, train_loader.dataset.y
+# test_loaders[32].dataset.y, test_loaders[32].dataset.x = test_loaders[32].dataset.x, test_loaders[32].dataset.y
 data_processor = data_processor.to(device)
 
 
@@ -128,6 +131,10 @@ for index in range(3):
     x = data['x']
     # Model prediction
     out = model(x.unsqueeze(0))
+
+    print(out-y)
+    print(np.linalg.norm( (out - y).detach().numpy()))
+
 
     ax = fig.add_subplot(3, 3, index*3 + 1)
     ax.imshow(x[0], cmap='gray')

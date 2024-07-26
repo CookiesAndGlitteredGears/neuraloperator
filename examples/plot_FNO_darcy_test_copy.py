@@ -5,6 +5,7 @@ Training a TFNO on Darcy-Flow
 In this example, we demonstrate how to use the small Darcy-Flow example we ship with the package
 to train a Tensorized Fourier-Neural Operator
 """
+import copy
 
 # %%
 # 
@@ -19,8 +20,12 @@ from neuralop.data.datasets import load_darcy_flow_small
 from neuralop.utils import count_model_params
 from neuralop import LpLoss, H1Loss
 
+print(torch.cuda.is_available())
+# torch.cuda.current_device()
+# torch.cuda.device(0)
+# torch.cuda.get_device_name(0)
 
-device = 'cpu'
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 def extract_boundary(nparray):
     array_dim = nparray.shape
@@ -32,7 +37,7 @@ def extract_boundary(nparray):
             np.take(nparray, [0, dimension_len - 1], axis=d),
             np.take(nparray, [x for x in range(dimension_len) if x not in [0,dimension_len - 1]],axis=d))
         flat_boundary_values = np.append(flat_boundary_values, boundary_array.flatten())
-        array = unboundary_array
+        nparray = unboundary_array
     return flat_boundary_values
 
 def inject_data(nparray):
@@ -45,17 +50,31 @@ def inject_data(nparray):
 # %%
 # Loading the Navier-Stokes dataset in 128x128 resolution
 train_loader, test_loaders, data_processor = load_darcy_flow_small(
-        n_train=10000, batch_size=128,
-        test_resolutions=[32, 32], n_tests=[1000, 500],
+        n_train=1000, batch_size=32,
+        test_resolutions=[16, 32], n_tests=[100, 50],
         test_batch_sizes=[32, 32],
         positional_encoding=True
 )
-train_loader.dataset.y, train_loader.dataset.x = train_loader.dataset.x, train_loader.dataset.y
-# test_loaders[16].dataset.x, test_loaders[16].dataset.y = test_loaders[16].dataset.y, test_loaders[16].dataset.x
 
-# test_loaders[32].dataset.x, test_loaders[32].dataset.y = test_loaders[32].dataset.y, test_loaders[32].dataset.x
-test_loaders[32].dataset.x = inject_data(test_loaders[32].dataset.y)
-test_loaders[32].dataset.y = inject_data(test_loaders[32].dataset.x)
+
+# train_loader.dataset.y, train_loader.dataset.x = train_loader.dataset.x, train_loader.dataset.y
+# test_loaders[16].dataset.y, test_loaders[16].dataset.x = test_loaders[16].dataset.x, test_loaders[16].dataset.y
+# test_loaders[32].dataset.y, test_loaders[32].dataset.x = test_loaders[32].dataset.x, test_loaders[32].dataset.y
+
+train_loader_original = copy.deepcopy(train_loader)
+test_loaders_original = copy.deepcopy(test_loaders)
+
+# train_loader.dataset.x = inject_data(train_loader.dataset.x)
+# train_loader.dataset.y = inject_data(train_loader.dataset.y)
+# test_loaders[32].dataset.x = inject_data(test_loaders[32].dataset.x)
+# test_loaders[32].dataset.y = inject_data(test_loaders[32].dataset.y)
+
+
+# train_loader.dataset.y = train_loader.dataset.x
+# train_loader.dataset.x = train_loader.dataset.y
+#
+# test_loaders[32].dataset.x = test_loaders[32].dataset.y
+# test_loaders[32].dataset.y = test_loaders[32].dataset.x
 
 # sample_loader = torch.tensor([])
 # for s in range(len(test_loaders[32].dataset.x)):
@@ -153,7 +172,7 @@ trainer.train(train_loader=train_loader,
 #
 # In practice we would train a Neural Operator on one or multiple GPUs
 
-test_samples = test_loaders[32].dataset
+test_samples = test_loaders_original[32].dataset
 
 fig = plt.figure(figsize=(7, 7))
 for index in range(3):
@@ -165,6 +184,11 @@ for index in range(3):
     y = data['y']
     # Model prediction
     out = model(x.unsqueeze(0))
+
+    #send to cpu for plotting
+    x, y, out = x.cpu(), y.cpu(), out.cpu()
+
+    print(out)
 
     ax = fig.add_subplot(3, 3, index*3 + 1)
     ax.imshow(x[0], cmap='cubehelix')

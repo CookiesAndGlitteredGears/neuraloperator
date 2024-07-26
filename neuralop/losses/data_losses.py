@@ -141,6 +141,7 @@ class LpLoss(object):
         return diff
 
     def __call__(self, y_pred, y, **kwargs):
+        #todo: H1 call (contains rel)
         return self.rel(y_pred, y)
 
 
@@ -267,6 +268,7 @@ class H1Loss(object):
         
         dict_x, dict_y = self.compute_terms(x, y, h)
 
+        #todo: norm calculation occurs here
         diff = torch.norm(dict_x[0] - dict_y[0], p=2, dim=-1, keepdim=False)**2
         ynorm = torch.norm(dict_y[0], p=2, dim=-1, keepdim=False)**2
 
@@ -282,4 +284,5 @@ class H1Loss(object):
         return diff
 
     def __call__(self, y_pred, y, h=None, **kwargs):
+        #todo: H1 call (contains rel)
         return self.rel(y_pred, y, h=h)
