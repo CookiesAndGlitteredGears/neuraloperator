@@ -6,7 +6,8 @@ In this example, we demonstrate how to use the small Darcy-Flow example we ship 
 to train a Tensorized Fourier-Neural Operator
 """
 import copy
-
+import os
+import datetime
 # %%
 # 
 
@@ -27,6 +28,10 @@ print(torch.cuda.is_available())
 # torch.cuda.get_device_name(0)
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+current_date = datetime.datetime.now().strftime('%Y_%b_%d_%H_%M_%S')
+if not os.path.exists('./output'): os.mkdir('./output')
+if not os.path.exists(f'./output/{current_date}'): os.mkdir(f'./output/{current_date}')
+
 def extract_boundary(nparray):
     array_dim = nparray.shape
     total_dimensions = len(array_dim)
@@ -253,6 +258,7 @@ trainer.train(train_loader=train_loader,
               training_loss=train_loss,
               eval_losses=eval_losses)
 
+os.rename(f'./output/loss_file.txt', f'./output/{current_date}/loss_file.txt')
 
 # %%
 # Plot the prediction, and compare with the ground-truth 
@@ -268,7 +274,7 @@ trainer.train(train_loader=train_loader,
 
 test_samples = test_loaders_original[32].dataset
 
-fig = plt.figure(figsize=(7, 7))
+fig = plt.figure(figsize=(8, 8))
 for index in range(3):
     data = test_samples[index]
     data = data_processor.preprocess(data, batched=False)
@@ -284,27 +290,45 @@ for index in range(3):
 
     print(out)
 
-    ax = fig.add_subplot(3, 3, index*3 + 1)
+    ax = fig.add_subplot(4, 3, index*3 + 1)
     ax.imshow(x[0], cmap='cubehelix')
+    plot = ax.pcolor(x[0])
+    fig.colorbar(plot)
     if index == 0: 
         ax.set_title('Input x')
     plt.xticks([], [])
     plt.yticks([], [])
 
-    ax = fig.add_subplot(3, 3, index*3 + 2)
+    offset = 0.3
+
+    ax = fig.add_subplot(4, 3, index*3 + 2)
     ax.imshow(y.squeeze(),cmap='cubehelix')
+    plot = ax.pcolor(y.squeeze(), vmin = min(y.squeeze().flatten())-offset, vmax = max(y.squeeze().flatten())+offset)
+    fig.colorbar(plot)
     if index == 0: 
         ax.set_title('Ground-truth y')
     plt.xticks([], [])
     plt.yticks([], [])
 
-    ax = fig.add_subplot(3, 3, index*3 + 3)
+    ax = fig.add_subplot(4, 3, index*3 + 3)
     ax.imshow(out.squeeze().detach().numpy(), cmap='cubehelix')
+    plot = ax.pcolor(out.squeeze().detach().numpy(), vmin = min(y.squeeze().flatten())-offset, vmax = max(y.squeeze().flatten())+offset)
+    fig.colorbar(plot)
     if index == 0: 
         ax.set_title('Model prediction')
     plt.xticks([], [])
     plt.yticks([], [])
 
+ax = fig.add_subplot(4, 1,4)
+loss_array = np.loadtxt(f'./output/{current_date}/loss_file.txt')
+plt.plot([x for x in range(len(loss_array))], loss_array)
+plt.xlabel('epoch')
+plt.ylabel('loss')
+plt.yscale('log')
+plt.axis([1,len(loss_array),0.0,max(loss_array)])
+
+
 fig.suptitle('Inputs, ground-truth output and prediction.', y=0.98)
-plt.tight_layout()
+# plt.tight_layout()
 fig.show()
+fig.savefig(f'./output/{current_date}/fig.png')

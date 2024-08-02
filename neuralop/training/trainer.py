@@ -228,6 +228,7 @@ class Trainer:
                     loss += regularizer.loss
 
                 loss.backward()
+
                 del out
 
                 optimizer.step()
@@ -256,6 +257,11 @@ class Trainer:
                 avg_lasso_loss = None
 
             # collect info to log, message to print
+
+            loss_file = open("./output/loss_file.txt",'a')
+            loss_file.write(f'{train_err}\n')
+            loss_file.close()
+
             if epoch % self.log_test_interval == 0:
                 if self.callbacks:
                     self.callbacks.on_before_val(
