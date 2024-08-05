@@ -26,7 +26,7 @@ print(torch.cuda.is_available())
 # torch.cuda.current_device()
 # torch.cuda.device(0)
 # torch.cuda.get_device_name(0)
-
+np.random.seed(0)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 current_date = datetime.datetime.now().strftime('%Y_%b_%d_%H_%M_%S')
 if not os.path.exists('./output'): os.mkdir('./output')
@@ -143,12 +143,15 @@ def get_random_sample_indexes(nparray, proportion = 1.0):
 #         test_batch_sizes=[32, 32],
 #         positional_encoding=True
 # )
-
+train_resolution = 16
+test_resolution = 32
 train_loader, test_loaders, data_processor = load_darcy_flow_small(
-        n_train=1000, batch_size=32,
-        test_resolutions=[32], n_tests=[100],
+        n_train=100, batch_size=32,
+        train_resolution=train_resolution,
+        test_resolutions=[test_resolution], n_tests=[100],
         test_batch_sizes=[32],
-        positional_encoding=True
+        positional_encoding=True,
+        download=True
 )
 
 # randomly pick indexes of a sample
@@ -156,14 +159,14 @@ train_loader, test_loaders, data_processor = load_darcy_flow_small(
 
 train_loader.dataset.y, train_loader.dataset.x = train_loader.dataset.x, train_loader.dataset.y
 # test_loaders[16].dataset.y, test_loaders[16].dataset.x = test_loaders[16].dataset.x, test_loaders[16].dataset.y
-test_loaders[32].dataset.y, test_loaders[32].dataset.x = test_loaders[32].dataset.x, test_loaders[32].dataset.y
+test_loaders[test_resolution].dataset.y, test_loaders[test_resolution].dataset.x = test_loaders[test_resolution].dataset.x, test_loaders[test_resolution].dataset.y
 
 train_loader_original = copy.deepcopy(train_loader)
 test_loaders_original = copy.deepcopy(test_loaders)
 
-train_loader.dataset.x, train_loader.dataset.y = inject_data((train_loader.dataset.x,train_loader.dataset.y), proportion=0.8)
+train_loader.dataset.x, train_loader.dataset.y = inject_data((train_loader.dataset.x,train_loader.dataset.y), proportion=1.0)
 # test_loaders[16].dataset.x, test_loaders[16].dataset.y = inject_data((test_loaders[16].dataset.x,test_loaders[16].dataset.y), proportion=0.9)
-test_loaders[32].dataset.x, test_loaders[32].dataset.y = inject_data((test_loaders[32].dataset.x,test_loaders[32].dataset.y), proportion=0.8)
+# test_loaders[test_resolution].dataset.x, test_loaders[test_resolution].dataset.y = inject_data((test_loaders[test_resolution].dataset.x,test_loaders[test_resolution].dataset.y), proportion=1.0)
 #
 # test_loaders[32].dataset.x = inject_data(test_loaders[32].dataset.x, proportion=1.0)
 # test_loaders[32].dataset.y = inject_data(test_loaders[32].dataset.y, proportion=1.0)
@@ -272,9 +275,9 @@ os.rename(f'./output/loss_file.txt', f'./output/{current_date}/loss_file.txt')
 #
 # In practice we would train a Neural Operator on one or multiple GPUs
 
-test_samples = test_loaders_original[32].dataset
+test_samples = test_loaders_original[test_resolution].dataset
 
-fig = plt.figure(figsize=(8, 8))
+fig = plt.figure(figsize=(15, 9))
 for index in range(3):
     data = test_samples[index]
     data = data_processor.preprocess(data, batched=False)
@@ -288,9 +291,9 @@ for index in range(3):
     #send to cpu for plotting
     x, y, out = x.cpu(), y.cpu(), out.cpu()
 
-    print(out)
+    # print(out)
 
-    ax = fig.add_subplot(4, 3, index*3 + 1)
+    ax = fig.add_subplot(3, 5, index*5 + 1)
     ax.imshow(x[0], cmap='cubehelix')
     plot = ax.pcolor(x[0])
     fig.colorbar(plot)
@@ -301,7 +304,7 @@ for index in range(3):
 
     offset = 0.3
 
-    ax = fig.add_subplot(4, 3, index*3 + 2)
+    ax = fig.add_subplot(3, 5, index*5+ 2)
     ax.imshow(y.squeeze(),cmap='cubehelix')
     plot = ax.pcolor(y.squeeze(), vmin = min(y.squeeze().flatten())-offset, vmax = max(y.squeeze().flatten())+offset)
     fig.colorbar(plot)
@@ -310,7 +313,7 @@ for index in range(3):
     plt.xticks([], [])
     plt.yticks([], [])
 
-    ax = fig.add_subplot(4, 3, index*3 + 3)
+    ax = fig.add_subplot(3, 5, index*5 + 3)
     ax.imshow(out.squeeze().detach().numpy(), cmap='cubehelix')
     plot = ax.pcolor(out.squeeze().detach().numpy(), vmin = min(y.squeeze().flatten())-offset, vmax = max(y.squeeze().flatten())+offset)
     fig.colorbar(plot)
@@ -319,16 +322,29 @@ for index in range(3):
     plt.xticks([], [])
     plt.yticks([], [])
 
-ax = fig.add_subplot(4, 1,4)
+    ax = fig.add_subplot(3, 5, index*5 + 4)
+    ax.imshow(y.squeeze()-out.squeeze().detach().numpy(), cmap='cubehelix')
+    plot = ax.pcolor(y.squeeze()-out.squeeze().detach().numpy(), vmin = min(y.squeeze().flatten())-offset, vmax = max(y.squeeze().flatten())+offset)
+    fig.colorbar(plot)
+    if index == 0:
+        ax.set_title('pred - truth')
+    plt.xticks([], [])
+    plt.yticks([], [])
+
+ax = fig.add_subplot(1, 5,5)
 loss_array = np.loadtxt(f'./output/{current_date}/loss_file.txt')
-plt.plot([x for x in range(len(loss_array))], loss_array)
-plt.xlabel('epoch')
-plt.ylabel('loss')
-plt.yscale('log')
-plt.axis([1,len(loss_array),0.0,max(loss_array)])
+ax.plot([x for x in range(len(loss_array))], loss_array)
+ax.set_title('Loss plot')
+ax.set_xlabel('epoch')
+ax.set_xlabel('loss')
+ax.set_yscale('log')
+# ax.axis([1,len(loss_array),10**(-4),max(loss_array)*10])
+
+# fig.subplots_adjust(wspace=1.0)
 
 
-fig.suptitle('Inputs, ground-truth output and prediction.', y=0.98)
-# plt.tight_layout()
+fig.suptitle('Inputs, ground-truth output, prediction, and difference.', y=0.98)
+plt.tight_layout()
 fig.show()
 fig.savefig(f'./output/{current_date}/fig.png')
+

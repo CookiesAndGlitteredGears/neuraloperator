@@ -92,20 +92,21 @@ def load_darcy_flow_small(n_train,
     batch_size,
     test_batch_sizes,
     data_root = example_data_root,
+    train_resolution = 16,
     test_resolutions=[16, 32],
     grid_boundaries=[[0, 1], [0, 1]],
     positional_encoding=True,
     encode_input=False,
     encode_output=True,
     encoding="channel-wise",
-    channel_dim=1,):
+    channel_dim=1, download=False):
 
     dataset = DarcyDataset(root_dir = data_root,
                            n_train=n_train,
                            n_tests=n_tests,
                            batch_size=batch_size,
                            test_batch_sizes=test_batch_sizes,
-                           train_resolution=16,
+                           train_resolution=train_resolution,
                            test_resolutions=test_resolutions,
                            grid_boundaries=grid_boundaries,
                            positional_encoding=positional_encoding,
@@ -113,7 +114,7 @@ def load_darcy_flow_small(n_train,
                            encode_output=encode_output,
                            encoding=encoding,
                            channel_dim=channel_dim,
-                           download=False)
+                           download=download)
 
     
     # return dataloaders for backwards compat
