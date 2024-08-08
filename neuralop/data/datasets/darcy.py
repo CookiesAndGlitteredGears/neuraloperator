@@ -45,7 +45,7 @@ class DarcyDataset(PTDataset):
             root_dir.mkdir(parents=True)
 
         # Zenodo record ID for Darcy-Flow dataset
-        zenodo_record_id = "10994262"
+        zenodo_record_id = "12784353"
 
         # List of resolutions needed for dataset object
         resolutions = set(test_resolutions + [train_resolution])

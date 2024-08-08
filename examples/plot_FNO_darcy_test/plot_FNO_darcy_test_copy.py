@@ -16,6 +16,7 @@ import torch
 import matplotlib.pyplot as plt
 import sys
 import random
+import scipy as sp
 from neuralop.models import TFNO
 from neuralop import Trainer
 from neuralop.data.datasets import load_darcy_flow_small
@@ -67,32 +68,61 @@ def extract_boundary(nparray):
 #
 #     return boundary_loader
 
-def inject_data(nparrays, proportion=1.0):
+def inject_data(torchtensors, proportion=0.25):
+    sample_array = torchtensors[0][0][0]
     boundary_loader_collection = torch.tensor([])
-    picked_element_indexes, remainder_element_indexes = get_random_sample_indexes(nparrays[0][0], proportion=proportion)
-    for nparray in nparrays:
+    # picked_element_indexes, remainder_element_indexes = get_random_sample_indexes(nparrays[0][0], proportion=proportion)
+    x_sensors_index, y_sensors_index = get_sensors_evenly_spaced(sample_array, proportion=proportion)
+    x_sensor = np.linspace(0.0, 1.0, len(x_sensors_index))
+    y_sensor = np.linspace(0.0, 1.0, len(y_sensors_index))
+    x_full = np.linspace(0.0, 1.0, sample_array.shape[0])
+    y_full = np.linspace(0.0, 1.0, sample_array.shape[1])
+    x_full_grid, y_full_grid = np.meshgrid(x_full, y_full, indexing='ij', sparse=True)
+    for tensor in torchtensors:
         boundary_loader = torch.tensor([])
-        for s in range(len(nparray)):
-            boundary, interior = extract_boundary(nparray[s][0])
-            boundary, interior = torch.tensor(boundary).float(), torch.tensor(interior).float()
-            full_array = copy.deepcopy(nparray[s][0])
+        for s in range(len(tensor)):
+            picked_elements = tensor[s][0][np.ix_(x_sensors_index, y_sensors_index)].detach().numpy()
+            try:
 
-            full_array[1:len(full_array)-1,1:len(full_array)-1] = 0
-            interior_dims = interior.shape
-
-
-            picked_element_indexes.sort()
-            picked_interior_elements = torch.flatten(interior)[picked_element_indexes]
-            remainder_picked_elements = picked_interior_elements[remainder_element_indexes]
-
-            sampled_interior_array = torch.cat((picked_interior_elements,remainder_picked_elements),dim=0)
-            sampled_interior_array = torch.reshape(sampled_interior_array,interior_dims)
-            full_array[1:len(full_array) - 1, 1:len(full_array) - 1] = sampled_interior_array
-
-            full_array = torch.reshape(full_array, [1,1] + [x for x in full_array.shape])
+                sensor_interpolator_func = sp.interpolate.RegularGridInterpolator((x_sensor, y_sensor), picked_elements.T, method='pchip', bounds_error=False)
+                print('PCHIP used')
+            except:
+                sensor_interpolator_func = sp.interpolate.RegularGridInterpolator((x_sensor, y_sensor),
+                                                                                  picked_elements.T, method='slinear',
+                                                                                  bounds_error=False)
+                print('spline linear interpolation used')
+            interpolated_grid = torch.tensor(sensor_interpolator_func((x_full_grid,y_full_grid)))
+            full_array = copy.deepcopy(tensor[s][0])
+            full_array[1:len(full_array)-1,1:len(full_array)-1] = interpolated_grid[1:len(interpolated_grid)-1,1:len(interpolated_grid)-1]
+            full_array = torch.reshape(full_array, [1, 1] + [x for x in full_array.shape])
             boundary_loader = torch.cat((boundary_loader, full_array), 0)
         boundary_loader = torch.reshape(boundary_loader, [1] + [x for x in boundary_loader.shape])
         boundary_loader_collection = torch.cat((boundary_loader_collection, boundary_loader), 0)
+
+#---------------------------------------------#
+        # random indeces
+        # boundary_loader = torch.tensor([])
+        # for s in range(len(nparray)):
+        #     boundary, interior = extract_boundary(nparray[s][0])
+        #     boundary, interior = torch.tensor(boundary).float(), torch.tensor(interior).float()
+        #     full_array = copy.deepcopy(nparray[s][0])
+        #
+        #     full_array[1:len(full_array)-1,1:len(full_array)-1] = 0
+        #     interior_dims = interior.shape
+        #
+        #
+        #     picked_element_indexes.sort()
+        #     picked_interior_elements = torch.flatten(interior)[picked_element_indexes]
+        #     remainder_picked_elements = picked_interior_elements[remainder_element_indexes]
+        #
+        #     sampled_interior_array = torch.cat((picked_interior_elements,remainder_picked_elements),dim=0)
+        #     sampled_interior_array = torch.reshape(sampled_interior_array,interior_dims)
+        #     full_array[1:len(full_array) - 1, 1:len(full_array) - 1] = sampled_interior_array
+        #
+            # full_array = torch.reshape(full_array, [1,1] + [x for x in full_array.shape])
+            # boundary_loader = torch.cat((boundary_loader, full_array), 0)
+        # boundary_loader = torch.reshape(boundary_loader, [1] + [x for x in boundary_loader.shape])
+        # boundary_loader_collection = torch.cat((boundary_loader_collection, boundary_loader), 0)
 
 
 
@@ -115,24 +145,44 @@ def inject_data(nparrays, proportion=1.0):
 
     return boundary_loader_collection
 
-def get_random_sample_indexes(nparray, proportion = 1.0):
-    picked_element_indexes = np.array([])
-    remainder_element_indexes = np.array([])
-    for s in range(len(nparray)):
+# def get_random_sample_indexes(nparray, proportion = 1.0):
+#     picked_element_indexes = np.array([])
+#     remainder_element_indexes = np.array([])
+#     for s in range(len(nparray)):
+#
+#         interior_array_dims = np.prod([x-2 if x > 1 else x for x in nparray.shape])
+#         element_count = np.prod(interior_array_dims)
+#
+#         picked_indices = np.random.choice(element_count, max(1, int(proportion * element_count)), replace=False)
+#         picked_indices.sort()
+#
+#         remainder = element_count - len(picked_indices)
+#         remainder_indices = np.random.choice(len(picked_indices), remainder, replace=True)
+#
+#         picked_element_indexes = np.concatenate((picked_element_indexes, picked_indices), 0)
+#         remainder_element_indexes = np.concatenate((remainder_element_indexes, remainder_indices), 0)
+#
+#         return picked_element_indexes, remainder_element_indexes
 
-        interior_array_dims = np.prod([x-2 if x > 1 else x for x in nparray.shape])
-        element_count = np.prod(interior_array_dims)
-
-        picked_indices = np.random.choice(element_count, max(1, int(proportion * element_count)), replace=False)
-        picked_indices.sort()
-
-        remainder = element_count - len(picked_indices)
-        remainder_indices = np.random.choice(len(picked_indices), remainder, replace=True)
-
-        picked_element_indexes = np.concatenate((picked_element_indexes, picked_indices), 0)
-        remainder_element_indexes = np.concatenate((remainder_element_indexes, remainder_indices), 0)
-
-        return picked_element_indexes, remainder_element_indexes
+def get_sensors_evenly_spaced(nparray, proportion = 0.25):
+    array_elements = np.prod(nparray.shape)
+    index_array = np.array([x for x in range(array_elements)])
+    index_array.resize(nparray.shape)
+    spacing = 2
+    while spacing < min(index_array.shape):
+        index_x = np.round(np.linspace(0, int(index_array.shape[0]) - 1, int(index_array.shape[0]) // spacing)).astype(int)
+        index_y = np.round(np.linspace(0, int(index_array.shape[1]) - 1, int(index_array.shape[1]) // spacing)).astype(int)
+        sensors = index_array[np.ix_(index_x, index_y)]
+        # print(index_x,index_y)
+        # print(sensors)
+        # print(len(sensors.flatten()), proportion * len(array.flatten()))
+        if len(sensors.flatten()) <= proportion * len(index_array.flatten()):
+            # print(index_x, index_y)
+            # print(sensors)
+            return (index_x,index_y)
+        spacing += 1
+    print('get_sensors_evenly_spaced could not generate appropriate indeces')
+    raise ValueError
 
 # %%
 # Loading the Navier-Stokes dataset in 128x128 resolution
@@ -164,7 +214,7 @@ test_loaders[test_resolution].dataset.y, test_loaders[test_resolution].dataset.x
 train_loader_original = copy.deepcopy(train_loader)
 test_loaders_original = copy.deepcopy(test_loaders)
 
-train_loader.dataset.x, train_loader.dataset.y = inject_data((train_loader.dataset.x,train_loader.dataset.y), proportion=1.0)
+train_loader.dataset.x, train_loader.dataset.y = inject_data((train_loader.dataset.x,train_loader.dataset.y), proportion=0.05)
 # test_loaders[16].dataset.x, test_loaders[16].dataset.y = inject_data((test_loaders[16].dataset.x,test_loaders[16].dataset.y), proportion=0.9)
 # test_loaders[test_resolution].dataset.x, test_loaders[test_resolution].dataset.y = inject_data((test_loaders[test_resolution].dataset.x,test_loaders[test_resolution].dataset.y), proportion=1.0)
 #
@@ -192,9 +242,17 @@ data_processor = data_processor.to(device)
 # %%
 # We create a tensorized FNO model
 
-model = TFNO(n_modes=(16, 16),
-             hidden_channels=32,
-             projection_channels=64,
+# model = TFNO(n_modes=(16, 16),
+#              hidden_channels=32,
+#              projection_channels=64,
+#              factorization='tucker',
+#              rank=0.42,
+#              in_channels=3,
+#              out_channels=1
+#              )
+model = TFNO(n_modes=(64, 64),
+             hidden_channels=128,
+             projection_channels=256,
              factorization='tucker',
              rank=0.42,
              in_channels=3,
@@ -241,7 +299,7 @@ sys.stdout.flush()
 # %% 
 # Create the trainer
 trainer = Trainer(model=model,
-                  n_epochs=100,
+                  n_epochs=1000,
                   device=device,
                   data_processor=data_processor,
                   wandb_log=False,
@@ -277,7 +335,9 @@ os.rename(f'./output/loss_file.txt', f'./output/{current_date}/loss_file.txt')
 
 test_samples = test_loaders_original[test_resolution].dataset
 
-fig = plt.figure(figsize=(15, 9))
+fig = plt.figure(figsize=(8, 8))
+
+
 for index in range(3):
     data = test_samples[index]
     data = data_processor.preprocess(data, batched=False)
@@ -293,52 +353,55 @@ for index in range(3):
 
     # print(out)
 
-    ax = fig.add_subplot(3, 5, index*5 + 1)
+    ax = fig.add_subplot(4, 4, index*4 + 1)
     ax.imshow(x[0], cmap='cubehelix')
     plot = ax.pcolor(x[0])
     fig.colorbar(plot)
-    if index == 0: 
+    if index == 0:
         ax.set_title('Input x')
     plt.xticks([], [])
     plt.yticks([], [])
 
     offset = 0.3
 
-    ax = fig.add_subplot(3, 5, index*5+ 2)
+    ax = fig.add_subplot(4, 4, index*4+ 2)
     ax.imshow(y.squeeze(),cmap='cubehelix')
     plot = ax.pcolor(y.squeeze(), vmin = min(y.squeeze().flatten())-offset, vmax = max(y.squeeze().flatten())+offset)
     fig.colorbar(plot)
-    if index == 0: 
+    if index == 0:
         ax.set_title('Ground-truth y')
     plt.xticks([], [])
     plt.yticks([], [])
 
-    ax = fig.add_subplot(3, 5, index*5 + 3)
+    ax = fig.add_subplot(4, 4, index*4 + 3)
     ax.imshow(out.squeeze().detach().numpy(), cmap='cubehelix')
     plot = ax.pcolor(out.squeeze().detach().numpy(), vmin = min(y.squeeze().flatten())-offset, vmax = max(y.squeeze().flatten())+offset)
     fig.colorbar(plot)
-    if index == 0: 
+    if index == 0:
         ax.set_title('Model prediction')
     plt.xticks([], [])
     plt.yticks([], [])
 
-    ax = fig.add_subplot(3, 5, index*5 + 4)
-    ax.imshow(y.squeeze()-out.squeeze().detach().numpy(), cmap='cubehelix')
-    plot = ax.pcolor(y.squeeze()-out.squeeze().detach().numpy(), vmin = min(y.squeeze().flatten())-offset, vmax = max(y.squeeze().flatten())+offset)
+
+
+    ax = fig.add_subplot(4, 4, index*4 + 4)
+    diff = y[0].squeeze()-out.squeeze().detach().numpy()
+    ax.imshow(diff, cmap='cubehelix')
+    plot = ax.pcolor(diff, vmin = torch.min(diff)-offset, vmax =  torch.max(diff)+offset)
     fig.colorbar(plot)
     if index == 0:
         ax.set_title('pred - truth')
     plt.xticks([], [])
     plt.yticks([], [])
 
-ax = fig.add_subplot(1, 5,5)
+ax = fig.add_subplot(4, 1,4)
 loss_array = np.loadtxt(f'./output/{current_date}/loss_file.txt')
 ax.plot([x for x in range(len(loss_array))], loss_array)
 ax.set_title('Loss plot')
 ax.set_xlabel('epoch')
-ax.set_xlabel('loss')
+ax.set_ylabel('loss')
 ax.set_yscale('log')
-# ax.axis([1,len(loss_array),10**(-4),max(loss_array)*10])
+ax.axis([1,len(loss_array),10**(-4),max(loss_array)*10])
 
 # fig.subplots_adjust(wspace=1.0)
 
@@ -348,3 +411,46 @@ plt.tight_layout()
 fig.show()
 fig.savefig(f'./output/{current_date}/fig.png')
 
+
+# fig = plt.figure(figsize=(7, 7))
+# for index in range(3):
+#     data = test_samples[index]
+#     data = data_processor.preprocess(data, batched=False)
+#     # Input x
+#     x = data['x']
+#     # Ground-truth
+#     y = data['y']
+#     # Model prediction
+#     out = model(x.unsqueeze(0))
+#
+#     #send to cpu for plotting
+#     x, y, out = x.cpu(), y.cpu(), out.cpu()
+#
+#     print(out)
+#
+#     ax = fig.add_subplot(3, 3, index*3 + 1)
+#     ax.imshow(x[0], cmap='cubehelix')
+#     if index == 0:
+#         ax.set_title('Input x')
+#     plt.xticks([], [])
+#     plt.yticks([], [])
+#
+#     ax = fig.add_subplot(3, 3, index*3 + 2)
+#     ax.imshow(y.squeeze(),cmap='cubehelix')
+#     if index == 0:
+#         ax.set_title('Ground-truth y')
+#     plt.xticks([], [])
+#     plt.yticks([], [])
+#
+#     ax = fig.add_subplot(3, 3, index*3 + 3)
+#     ax.imshow(out.squeeze().detach().numpy(), cmap='cubehelix')
+#     if index == 0:
+#         ax.set_title('Model prediction')
+#     plt.xticks([], [])
+#     plt.yticks([], [])
+#
+# fig.suptitle('Inputs, ground-truth output and prediction.', y=0.98)
+# plt.tight_layout()
+# fig.show()
+# fig.savefig(f'./output/{current_date}/fig.png')
+# plt.close()
