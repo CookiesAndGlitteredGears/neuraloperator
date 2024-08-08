@@ -68,36 +68,36 @@ def extract_boundary(nparray):
 #
 #     return boundary_loader
 
-def inject_data(torchtensors, proportion=0.25):
-    sample_array = torchtensors[0][0][0]
-    boundary_loader_collection = torch.tensor([])
-    # picked_element_indexes, remainder_element_indexes = get_random_sample_indexes(nparrays[0][0], proportion=proportion)
-    x_sensors_index, y_sensors_index = get_sensors_evenly_spaced(sample_array, proportion=proportion)
-    x_sensor = np.linspace(0.0, 1.0, len(x_sensors_index))
-    y_sensor = np.linspace(0.0, 1.0, len(y_sensors_index))
-    x_full = np.linspace(0.0, 1.0, sample_array.shape[0])
-    y_full = np.linspace(0.0, 1.0, sample_array.shape[1])
-    x_full_grid, y_full_grid = np.meshgrid(x_full, y_full, indexing='ij', sparse=True)
-    for tensor in torchtensors:
-        boundary_loader = torch.tensor([])
-        for s in range(len(tensor)):
-            picked_elements = tensor[s][0][np.ix_(x_sensors_index, y_sensors_index)].detach().numpy()
-            try:
-
-                sensor_interpolator_func = sp.interpolate.RegularGridInterpolator((x_sensor, y_sensor), picked_elements.T, method='pchip', bounds_error=False)
-                print('PCHIP used')
-            except:
-                sensor_interpolator_func = sp.interpolate.RegularGridInterpolator((x_sensor, y_sensor),
-                                                                                  picked_elements.T, method='slinear',
-                                                                                  bounds_error=False)
-                print('spline linear interpolation used')
-            interpolated_grid = torch.tensor(sensor_interpolator_func((x_full_grid,y_full_grid)))
-            full_array = copy.deepcopy(tensor[s][0])
-            full_array[1:len(full_array)-1,1:len(full_array)-1] = interpolated_grid[1:len(interpolated_grid)-1,1:len(interpolated_grid)-1]
-            full_array = torch.reshape(full_array, [1, 1] + [x for x in full_array.shape])
-            boundary_loader = torch.cat((boundary_loader, full_array), 0)
-        boundary_loader = torch.reshape(boundary_loader, [1] + [x for x in boundary_loader.shape])
-        boundary_loader_collection = torch.cat((boundary_loader_collection, boundary_loader), 0)
+# def inject_data(torchtensors, proportion=0.25):
+#     sample_array = torchtensors[0][0][0]
+#     boundary_loader_collection = torch.tensor([])
+#     # picked_element_indexes, remainder_element_indexes = get_random_sample_indexes(nparrays[0][0], proportion=proportion)
+#     x_sensors_index, y_sensors_index = get_sensors_evenly_spaced(sample_array, proportion=proportion)
+#     x_sensor = np.linspace(0.0, 1.0, len(x_sensors_index))
+#     y_sensor = np.linspace(0.0, 1.0, len(y_sensors_index))
+#     x_full = np.linspace(0.0, 1.0, sample_array.shape[0])
+#     y_full = np.linspace(0.0, 1.0, sample_array.shape[1])
+#     x_full_grid, y_full_grid = np.meshgrid(x_full, y_full, indexing='ij', sparse=True)
+#     for tensor in torchtensors:
+#         boundary_loader = torch.tensor([])
+#         for s in range(len(tensor)):
+#             picked_elements = tensor[s][0][np.ix_(x_sensors_index, y_sensors_index)].detach().numpy()
+#             try:
+#
+#                 sensor_interpolator_func = sp.interpolate.RegularGridInterpolator((x_sensor, y_sensor), picked_elements.T, method='pchip', bounds_error=False)
+#                 print('PCHIP used')
+#             except:
+#                 sensor_interpolator_func = sp.interpolate.RegularGridInterpolator((x_sensor, y_sensor),
+#                                                                                   picked_elements.T, method='slinear',
+#                                                                                   bounds_error=False)
+#                 print('spline linear interpolation used')
+#             interpolated_grid = torch.tensor(sensor_interpolator_func((x_full_grid,y_full_grid)))
+#             full_array = copy.deepcopy(tensor[s][0])
+#             full_array[1:len(full_array)-1,1:len(full_array)-1] = interpolated_grid[1:len(interpolated_grid)-1,1:len(interpolated_grid)-1]
+#             full_array = torch.reshape(full_array, [1, 1] + [x for x in full_array.shape])
+#             boundary_loader = torch.cat((boundary_loader, full_array), 0)
+#         boundary_loader = torch.reshape(boundary_loader, [1] + [x for x in boundary_loader.shape])
+#         boundary_loader_collection = torch.cat((boundary_loader_collection, boundary_loader), 0)
 
 #---------------------------------------------#
         # random indeces
@@ -194,7 +194,8 @@ def get_sensors_evenly_spaced(nparray, proportion = 0.25):
 #         positional_encoding=True
 # )
 train_resolution = 16
-test_resolution = 32
+
+test_resolution = 421
 train_loader, test_loaders, data_processor = load_darcy_flow_small(
         n_train=100, batch_size=32,
         train_resolution=train_resolution,
@@ -211,10 +212,18 @@ train_loader.dataset.y, train_loader.dataset.x = train_loader.dataset.x, train_l
 # test_loaders[16].dataset.y, test_loaders[16].dataset.x = test_loaders[16].dataset.x, test_loaders[16].dataset.y
 test_loaders[test_resolution].dataset.y, test_loaders[test_resolution].dataset.x = test_loaders[test_resolution].dataset.x, test_loaders[test_resolution].dataset.y
 
+# sig = plt.figure(figsize=(2, 2))
+# ax = sig.add_subplot(1,1)
+# ax.imshow(out.squeeze().detach().numpy(), cmap='cubehelix')
+#
+# sig.show()
+
+
+
 train_loader_original = copy.deepcopy(train_loader)
 test_loaders_original = copy.deepcopy(test_loaders)
 
-train_loader.dataset.x, train_loader.dataset.y = inject_data((train_loader.dataset.x,train_loader.dataset.y), proportion=0.05)
+# train_loader.dataset.x, train_loader.dataset.y = inject_data((train_loader.dataset.x,train_loader.dataset.y), proportion=0.05)
 # test_loaders[16].dataset.x, test_loaders[16].dataset.y = inject_data((test_loaders[16].dataset.x,test_loaders[16].dataset.y), proportion=0.9)
 # test_loaders[test_resolution].dataset.x, test_loaders[test_resolution].dataset.y = inject_data((test_loaders[test_resolution].dataset.x,test_loaders[test_resolution].dataset.y), proportion=1.0)
 #
@@ -250,7 +259,7 @@ data_processor = data_processor.to(device)
 #              in_channels=3,
 #              out_channels=1
 #              )
-model = TFNO(n_modes=(64, 64),
+model = TFNO(n_modes=(32, 32),
              hidden_channels=128,
              projection_channels=256,
              factorization='tucker',
@@ -269,7 +278,7 @@ sys.stdout.flush()
 
 # %%
 #Create the optimizer
-optimizer = torch.optim.Adam(model.parameters(), 
+optimizer = torch.optim.SGD(model.parameters(),
                                 lr=8e-3, 
                                 weight_decay=1e-4)
 scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=30)
@@ -295,11 +304,11 @@ print(f'\n * Train: {train_loss}')
 print(f'\n * Test: {eval_losses}')
 sys.stdout.flush()
 
-
+3
 # %% 
 # Create the trainer
 trainer = Trainer(model=model,
-                  n_epochs=1000,
+                  n_epochs=100,
                   device=device,
                   data_processor=data_processor,
                   wandb_log=False,
