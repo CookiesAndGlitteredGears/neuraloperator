@@ -195,7 +195,7 @@ def get_sensors_evenly_spaced(nparray, proportion = 0.25):
 # )
 train_resolution = 16
 
-test_resolution = 421
+test_resolution = 32
 train_loader, test_loaders, data_processor = load_darcy_flow_small(
         n_train=100, batch_size=32,
         train_resolution=train_resolution,
@@ -208,42 +208,13 @@ train_loader, test_loaders, data_processor = load_darcy_flow_small(
 # randomly pick indexes of a sample
 
 
-train_loader.dataset.y, train_loader.dataset.x = train_loader.dataset.x, train_loader.dataset.y
-# test_loaders[16].dataset.y, test_loaders[16].dataset.x = test_loaders[16].dataset.x, test_loaders[16].dataset.y
-test_loaders[test_resolution].dataset.y, test_loaders[test_resolution].dataset.x = test_loaders[test_resolution].dataset.x, test_loaders[test_resolution].dataset.y
-
-# sig = plt.figure(figsize=(2, 2))
-# ax = sig.add_subplot(1,1)
-# ax.imshow(out.squeeze().detach().numpy(), cmap='cubehelix')
-#
-# sig.show()
+# train_loader.dataset.y, train_loader.dataset.x = train_loader.dataset.x, train_loader.dataset.y
+# test_loaders[test_resolution].dataset.y, test_loaders[test_resolution].dataset.x = test_loaders[test_resolution].dataset.x, test_loaders[test_resolution].dataset.y
 
 
 
 train_loader_original = copy.deepcopy(train_loader)
 test_loaders_original = copy.deepcopy(test_loaders)
-
-# train_loader.dataset.x, train_loader.dataset.y = inject_data((train_loader.dataset.x,train_loader.dataset.y), proportion=0.05)
-# test_loaders[16].dataset.x, test_loaders[16].dataset.y = inject_data((test_loaders[16].dataset.x,test_loaders[16].dataset.y), proportion=0.9)
-# test_loaders[test_resolution].dataset.x, test_loaders[test_resolution].dataset.y = inject_data((test_loaders[test_resolution].dataset.x,test_loaders[test_resolution].dataset.y), proportion=1.0)
-#
-# test_loaders[32].dataset.x = inject_data(test_loaders[32].dataset.x, proportion=1.0)
-# test_loaders[32].dataset.y = inject_data(test_loaders[32].dataset.y, proportion=1.0)
-
-
-# train_loader.dataset.y = train_loader.dataset.x
-# train_loader.dataset.x = train_loader.dataset.y
-#
-# test_loaders[32].dataset.x = test_loaders[32].dataset.y
-# test_loaders[32].dataset.y = test_loaders[32].dataset.x
-
-# sample_loader = torch.tensor([])
-# for s in range(len(test_loaders[32].dataset.x)):
-#     slice = test_loaders[32].dataset.x[s][0]
-#     slice = torch.tensor(extract_boundary(slice))
-#     slice = torch.reshape(slice, (1, 1, len(slice), 1))
-#     sample_loader = torch.cat((sample_loader, slice), 0)
-
 
 data_processor = data_processor.to(device)
 
@@ -259,14 +230,18 @@ data_processor = data_processor.to(device)
 #              in_channels=3,
 #              out_channels=1
 #              )
-model = TFNO(n_modes=(32, 32),
-             hidden_channels=128,
-             projection_channels=256,
+# %%
+# We create a tensorized FNO model
+
+model = TFNO(n_modes=(16, 16),
+             hidden_channels=32,
+             projection_channels=64,
              factorization='tucker',
              rank=0.42,
              in_channels=3,
              out_channels=1
              )
+
 model = model.to(device)
 
 # model(torch.tensor([[1.0,2.0]]))
@@ -278,7 +253,7 @@ sys.stdout.flush()
 
 # %%
 #Create the optimizer
-optimizer = torch.optim.SGD(model.parameters(),
+optimizer = torch.optim.Adam(model.parameters(),
                                 lr=8e-3, 
                                 weight_decay=1e-4)
 scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=30)
@@ -308,7 +283,7 @@ sys.stdout.flush()
 # %% 
 # Create the trainer
 trainer = Trainer(model=model,
-                  n_epochs=100,
+                  n_epochs=1000,
                   device=device,
                   data_processor=data_processor,
                   wandb_log=False,

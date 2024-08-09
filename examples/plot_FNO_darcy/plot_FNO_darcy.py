@@ -13,6 +13,8 @@ import numpy as np
 import torch
 import matplotlib.pyplot as plt
 import sys
+import os
+import datetime
 from neuralop.models import TFNO
 from neuralop import Trainer
 from neuralop.data.datasets import load_darcy_flow_small
@@ -21,7 +23,11 @@ from neuralop import LpLoss, H1Loss
 
 
 device = 'cpu'
-
+np.random.seed(0)
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+current_date = datetime.datetime.now().strftime('%Y_%b_%d_%H_%M_%S')
+if not os.path.exists('./output'): os.mkdir('./output')
+if not os.path.exists(f'./output/{current_date}'): os.mkdir(f'./output/{current_date}')
 
 
 # %%
@@ -86,14 +92,14 @@ sys.stdout.flush()
 # %% 
 # Create the trainer
 trainer = Trainer(model=model,
-                  n_epochs=20,
+                  n_epochs=200,
                   device=device,
                   data_processor=data_processor,
                   wandb_log=False,
                   log_test_interval=3,
                   use_distributed=False,
                   verbose=True)
-
+os.rename(f'./output/loss_file.txt', f'./output/{current_date}/loss_file.txt')
 
 # %%
 # Actually train the model on our small Darcy-Flow dataset
@@ -121,42 +127,78 @@ trainer.train(train_loader=train_loader,
 
 test_samples = test_loaders[32].dataset
 
-fig = plt.figure(figsize=(7, 7))
+fig = plt.figure(figsize=(8, 8))
+
+
 for index in range(3):
     data = test_samples[index]
     data = data_processor.preprocess(data, batched=False)
     # Input x
-    y = data['y']
-    # Ground-truth
     x = data['x']
+    # Ground-truth
+    y = data['y']
     # Model prediction
     out = model(x.unsqueeze(0))
 
-    print(out-y)
-    print(np.linalg.norm( (out - y).detach().numpy()))
+    #send to cpu for plotting
+    x, y, out = x.cpu(), y.cpu(), out.cpu()
 
+    # print(out)
 
-    ax = fig.add_subplot(3, 3, index*3 + 1)
-    ax.imshow(x[0], cmap='gray')
-    if index == 0: 
+    ax = fig.add_subplot(4, 4, index*4 + 1)
+    ax.imshow(x[0], cmap='cubehelix')
+    plot = ax.pcolor(x[0])
+    fig.colorbar(plot)
+    if index == 0:
         ax.set_title('Input x')
     plt.xticks([], [])
     plt.yticks([], [])
 
-    ax = fig.add_subplot(3, 3, index*3 + 2)
-    ax.imshow(y.squeeze())
-    if index == 0: 
+    offset = 0.3
+
+    ax = fig.add_subplot(4, 4, index*4+ 2)
+    ax.imshow(y.squeeze(),cmap='cubehelix')
+    plot = ax.pcolor(y.squeeze(), vmin = min(y.squeeze().flatten())-offset, vmax = max(y.squeeze().flatten())+offset)
+    fig.colorbar(plot)
+    if index == 0:
         ax.set_title('Ground-truth y')
     plt.xticks([], [])
     plt.yticks([], [])
 
-    ax = fig.add_subplot(3, 3, index*3 + 3)
-    ax.imshow(out.squeeze().detach().numpy())
-    if index == 0: 
+    ax = fig.add_subplot(4, 4, index*4 + 3)
+    ax.imshow(out.squeeze().detach().numpy(), cmap='cubehelix')
+    plot = ax.pcolor(out.squeeze().detach().numpy(), vmin = min(y.squeeze().flatten())-offset, vmax = max(y.squeeze().flatten())+offset)
+    fig.colorbar(plot)
+    if index == 0:
         ax.set_title('Model prediction')
     plt.xticks([], [])
     plt.yticks([], [])
 
-fig.suptitle('Inputs, ground-truth output and prediction.', y=0.98)
+
+
+    ax = fig.add_subplot(4, 4, index*4 + 4)
+    diff = y[0].squeeze()-out.squeeze().detach().numpy()
+    ax.imshow(diff, cmap='cubehelix')
+    plot = ax.pcolor(diff, vmin = torch.min(diff)-offset, vmax =  torch.max(diff)+offset)
+    fig.colorbar(plot)
+    if index == 0:
+        ax.set_title('pred - truth')
+    plt.xticks([], [])
+    plt.yticks([], [])
+
+ax = fig.add_subplot(4, 1,4)
+loss_array = np.loadtxt(f'./output/{current_date}/loss_file.txt')
+ax.plot([x for x in range(len(loss_array))], loss_array)
+ax.set_title('Loss plot')
+ax.set_xlabel('epoch')
+ax.set_ylabel('loss')
+ax.set_yscale('log')
+ax.axis([1,len(loss_array),10**(-4),max(loss_array)*10])
+
+# fig.subplots_adjust(wspace=1.0)
+
+
+fig.suptitle('Inputs, ground-truth output, prediction, and difference.', y=0.98)
 plt.tight_layout()
 fig.show()
+fig.savefig(f'./output/{current_date}/fig.png')
