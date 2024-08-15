@@ -196,7 +196,7 @@ def get_sensors_evenly_spaced(nparray, proportion = 0.25):
 # )
 train_resolution = 16
 
-test_resolution = 128
+test_resolution = 421
 train_loader, test_loaders, data_processor = load_darcy_flow_small(
         n_train=100, batch_size=32,
         train_resolution=train_resolution,
@@ -212,48 +212,6 @@ train_loader, test_loaders, data_processor = load_darcy_flow_small(
 train_loader.dataset.y, train_loader.dataset.x = train_loader.dataset.x, train_loader.dataset.y
 # test_loaders[16].dataset.y, test_loaders[16].dataset.x = test_loaders[16].dataset.x, test_loaders[16].dataset.y
 test_loaders[test_resolution].dataset.y, test_loaders[test_resolution].dataset.x = test_loaders[test_resolution].dataset.x, test_loaders[test_resolution].dataset.y
-
-# fig = plt.figure(figsize=(8, 8))
-#
-#
-# for index in range(3):
-#     data = train_loader[index]
-#     data = data_processor.preprocess(data, batched=False)
-#     # Input x
-#     x = data['x']
-#     # Ground-truth
-#     y = data['y']
-#     # Model prediction
-#
-#
-#     #send to cpu for plotting
-#     x, y = x.cpu(), y.cpu()
-#
-#     # print(out)
-#
-#     ax = fig.add_subplot(4, 4, index*4 + 1)
-#     ax.imshow(x[0], cmap='cubehelix')
-#     plot = ax.pcolor(x[0])
-#     fig.colorbar(plot)
-#     if index == 0:
-#         ax.set_title('Input x')
-#     plt.xticks([], [])
-#     plt.yticks([], [])
-#
-#     offset = 0.3
-#
-#     ax = fig.add_subplot(4, 4, index*4+ 2)
-#     ax.imshow(y.squeeze(),cmap='cubehelix')
-#     plot = ax.pcolor(y.squeeze(), vmin = min(y.squeeze().flatten())-offset, vmax = max(y.squeeze().flatten())+offset)
-#     fig.colorbar(plot)
-#     if index == 0:
-#         ax.set_title('Ground-truth y')
-#     plt.xticks([], [])
-#     plt.yticks([], [])
-
-
-
-
 
 # sig = plt.figure(figsize=(2, 2))
 # ax = sig.add_subplot(1,1)
@@ -397,7 +355,6 @@ for index in range(3):
     # Ground-truth
     y = data['y']
     # Model prediction
-
     out = model(x.unsqueeze(0))
 
     #send to cpu for plotting

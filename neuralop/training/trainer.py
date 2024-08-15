@@ -257,10 +257,12 @@ class Trainer:
                 avg_lasso_loss = None
 
             # collect info to log, message to print
-
-            loss_file = open("./output/loss_file.txt",'a')
-            loss_file.write(f'{train_err}\n')
-            loss_file.close()
+            try:
+                loss_file = open("./output/loss_file.txt",'a')
+                loss_file.write(f'{train_err}\n')
+                loss_file.close()
+            except:
+                pass
 
             if epoch % self.log_test_interval == 0:
                 if self.callbacks:
