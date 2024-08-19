@@ -30,9 +30,9 @@ print(torch.cuda.is_available())
 np.random.seed(0)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 current_date = datetime.datetime.now().strftime('%Y_%b_%d_%H_%M_%S')
-if not os.path.exists('output_archive/output'): os.mkdir('output_archive/output')
-if not os.path.exists(f'output_archive/output/{current_date}'): os.mkdir(f'output_archive/output/{current_date}')
-sys.stdout = open(f'output_archive/output/{current_date}/log_file.txt', 'w')
+if not os.path.exists('output'): os.mkdir('output')
+if not os.path.exists(f'output/{current_date}'): os.mkdir(f'output/{current_date}')
+sys.stdout = open(f'output/{current_date}/log_file.txt', 'w')
 
 def extract_boundary(nparray):
     array_dim = nparray.shape
@@ -323,7 +323,7 @@ trainer.train(train_loader=train_loader,
               training_loss=train_loss,
               eval_losses=eval_losses)
 
-os.rename(f'output_archive/output/loss_file.txt', f'output_archive/output/{current_date}/loss_file.txt')
+os.rename(f'output/loss_file.txt', f'output/{current_date}/loss_file.txt')
 
 # %%
 # Plot the prediction, and compare with the ground-truth 
@@ -399,7 +399,7 @@ for index in range(3):
     plt.yticks([], [])
 
 ax = fig.add_subplot(4, 1,4)
-loss_array = np.loadtxt(f'output_archive/output/{current_date}/loss_file.txt')
+loss_array = np.loadtxt(f'output/{current_date}/loss_file.txt')
 ax.plot([x for x in range(len(loss_array))], loss_array)
 ax.set_title('Loss plot')
 ax.set_xlabel('epoch')
