@@ -28,6 +28,7 @@ print(torch.cuda.is_available())
 # torch.cuda.device(0)
 # torch.cuda.get_device_name(0)
 np.random.seed(0)
+torch.manual_seed(0)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 current_date = datetime.datetime.now().strftime('%Y_%b_%d_%H_%M_%S')
 if not os.path.exists('./output'): os.mkdir('./output')
@@ -44,14 +45,14 @@ sys.stdout = open(f'./output/{current_date}/log_file.txt', 'w')
 #         test_batch_sizes=[32, 32],
 #         positional_encoding=True
 # )
-train_resolution = 64
+train_resolution = 32
 
-test_resolution = 64
+test_resolution = 32
 train_loader, test_loaders, data_processor = load_darcy_flow_small(
         n_train=1000, batch_size=32,
         train_resolution=train_resolution,
-        test_resolutions=[test_resolution], n_tests=[100,50],
-        test_batch_sizes=[32,32],
+        test_resolutions=[test_resolution], n_tests=[100],
+        test_batch_sizes=[32],
         positional_encoding=True,
         download=True
 )
@@ -129,8 +130,7 @@ sys.stdout.flush()
 
 # %% 
 # Create the trainer
-trainer = Trainer(model=model,
-                  n_epochs=301,
+trainer = Trainer(model=model, n_epochs=301,
                   device=device,
                   data_processor=data_processor,
                   wandb_log=False,
@@ -193,7 +193,7 @@ for index in range(3):
     plt.xticks([], [])
     plt.yticks([], [])
 
-    offset = 0.3
+    offset = 0.05
 
     ax = fig.add_subplot(4, 4, index*4+ 2)
     ax.imshow(y.squeeze(),cmap='cubehelix')
@@ -243,4 +243,3 @@ fig.show()
 fig.savefig(f'./output/{current_date}/fig.png')
 
 sys.stdout.close()
-
