@@ -30,9 +30,9 @@ print(torch.cuda.is_available())
 np.random.seed(0)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 current_date = datetime.datetime.now().strftime('%Y_%b_%d_%H_%M_%S')
-if not os.path.exists('./output'): os.mkdir('./output')
-if not os.path.exists(f'./output/{current_date}'): os.mkdir(f'./output/{current_date}')
-sys.stdout = open(f'./output/{current_date}/log_file.txt', 'w')
+if not os.path.exists('output_archive/output'): os.mkdir('output_archive/output')
+if not os.path.exists(f'output_archive/output/{current_date}'): os.mkdir(f'output_archive/output/{current_date}')
+sys.stdout = open(f'output_archive/output/{current_date}/log_file.txt', 'w')
 
 def extract_boundary(nparray):
     array_dim = nparray.shape
@@ -194,30 +194,25 @@ def get_sensors_evenly_spaced(nparray, proportion = 0.25):
 #         test_batch_sizes=[32, 32],
 #         positional_encoding=True
 # )
-train_resolution = 16
+train_resolution = 64
 
-test_resolution = 421
+test_resolution = 64
 train_loader, test_loaders, data_processor = load_darcy_flow_small(
-        n_train=100, batch_size=32,
+        n_train=1000, batch_size=32,
         train_resolution=train_resolution,
-        test_resolutions=[test_resolution], n_tests=[100],
-        test_batch_sizes=[32],
+        test_resolutions=[test_resolution], n_tests=[100,50],
+        test_batch_sizes=[32,32],
         positional_encoding=True,
-        download=True
+        download=False
 )
 
 # randomly pick indexes of a sample
 
 
 train_loader.dataset.y, train_loader.dataset.x = train_loader.dataset.x, train_loader.dataset.y
-# test_loaders[16].dataset.y, test_loaders[16].dataset.x = test_loaders[16].dataset.x, test_loaders[16].dataset.y
 test_loaders[test_resolution].dataset.y, test_loaders[test_resolution].dataset.x = test_loaders[test_resolution].dataset.x, test_loaders[test_resolution].dataset.y
 
-# sig = plt.figure(figsize=(2, 2))
-# ax = sig.add_subplot(1,1)
-# ax.imshow(out.squeeze().detach().numpy(), cmap='cubehelix')
-#
-# sig.show()
+
 
 
 
@@ -308,7 +303,7 @@ sys.stdout.flush()
 # %% 
 # Create the trainer
 trainer = Trainer(model=model,
-                  n_epochs=301,
+                  n_epochs=300,
                   device=device,
                   data_processor=data_processor,
                   wandb_log=False,
@@ -328,7 +323,7 @@ trainer.train(train_loader=train_loader,
               training_loss=train_loss,
               eval_losses=eval_losses)
 
-os.rename(f'./output/loss_file.txt', f'./output/{current_date}/loss_file.txt')
+os.rename(f'output_archive/output/loss_file.txt', f'output_archive/output/{current_date}/loss_file.txt')
 
 # %%
 # Plot the prediction, and compare with the ground-truth 
@@ -404,7 +399,7 @@ for index in range(3):
     plt.yticks([], [])
 
 ax = fig.add_subplot(4, 1,4)
-loss_array = np.loadtxt(f'./output/{current_date}/loss_file.txt')
+loss_array = np.loadtxt(f'output_archive/output/{current_date}/loss_file.txt')
 ax.plot([x for x in range(len(loss_array))], loss_array)
 ax.set_title('Loss plot')
 ax.set_xlabel('epoch')
