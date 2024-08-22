@@ -5,7 +5,9 @@ Training a TFNO on Darcy-Flow
 In this example, we demonstrate how to use the small Darcy-Flow example we ship with the package
 to train a Tensorized Fourier-Neural Operator
 """
-
+import copy
+import os
+import datetime
 # %%
 # 
 
@@ -22,21 +24,20 @@ from neuralop.utils import count_model_params
 from neuralop import LpLoss, H1Loss
 
 
-device = 'cpu'
 np.random.seed(0)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 current_date = datetime.datetime.now().strftime('%Y_%b_%d_%H_%M_%S')
 if not os.path.exists('./output'): os.mkdir('./output')
 if not os.path.exists(f'./output/{current_date}'): os.mkdir(f'./output/{current_date}')
 
+sys.stdout = open(f'./output/{current_date}/log_file.txt', 'w')
 
 # %%
 # Loading the Navier-Stokes dataset in 128x128 resolution
 train_loader, test_loaders, data_processor = load_darcy_flow_small(
-        n_train=100, batch_size=32,
+        n_train=1000, batch_size=32,
         test_resolutions=[16, 32], n_tests=[100, 50],
         test_batch_sizes=[32, 32],
-        positional_encoding=True
 )
 # train_loader.dataset.y, train_loader.dataset.x = train_loader.dataset.x, train_loader.dataset.y
 # test_loaders[32].dataset.y, test_loaders[32].dataset.x = test_loaders[32].dataset.x, test_loaders[32].dataset.y
@@ -46,14 +47,8 @@ data_processor = data_processor.to(device)
 # %%
 # We create a tensorized FNO model
 
-model = TFNO(n_modes=(16, 16),
-             hidden_channels=32,
-             projection_channels=64,
-             factorization='tucker',
-             rank=0.42)
+model = TFNO(n_modes=(16, 16), in_channels=1, hidden_channels=32, projection_channels=64, factorization='tucker', rank=0.42)
 model = model.to(device)
-
-
 
 n_params = count_model_params(model)
 print(f'\nOur model has {n_params} parameters.')
@@ -91,15 +86,14 @@ sys.stdout.flush()
 
 # %% 
 # Create the trainer
-trainer = Trainer(model=model,
-                  n_epochs=200,
+trainer = Trainer(model=model, n_epochs=20,
                   device=device,
                   data_processor=data_processor,
                   wandb_log=False,
-                  log_test_interval=3,
+                  eval_interval=3,
                   use_distributed=False,
                   verbose=True)
-os.rename(f'./output/loss_file.txt', f'./output/{current_date}/loss_file.txt')
+
 
 # %%
 # Actually train the model on our small Darcy-Flow dataset
@@ -112,6 +106,7 @@ trainer.train(train_loader=train_loader,
               training_loss=train_loss,
               eval_losses=eval_losses)
 
+os.rename(f'./output/loss_file.txt', f'./output/{current_date}/loss_file.txt')
 
 # %%
 # Plot the prediction, and compare with the ground-truth 
@@ -154,7 +149,7 @@ for index in range(3):
     plt.xticks([], [])
     plt.yticks([], [])
 
-    offset = 0.3
+    offset = 0.05
 
     ax = fig.add_subplot(4, 4, index*4+ 2)
     ax.imshow(y.squeeze(),cmap='cubehelix')
@@ -178,11 +173,11 @@ for index in range(3):
 
     ax = fig.add_subplot(4, 4, index*4 + 4)
     diff = y[0].squeeze()-out.squeeze().detach().numpy()
-    ax.imshow(diff, cmap='cubehelix')
+    ax.imshow(np.abs(diff), cmap='cubehelix')
     plot = ax.pcolor(diff, vmin = torch.min(diff)-offset, vmax =  torch.max(diff)+offset)
     fig.colorbar(plot)
     if index == 0:
-        ax.set_title('pred - truth')
+        ax.set_title('abs(pred - truth)')
     plt.xticks([], [])
     plt.yticks([], [])
 
@@ -202,3 +197,5 @@ fig.suptitle('Inputs, ground-truth output, prediction, and difference.', y=0.98)
 plt.tight_layout()
 fig.show()
 fig.savefig(f'./output/{current_date}/fig.png')
+
+sys.stdout.close()
