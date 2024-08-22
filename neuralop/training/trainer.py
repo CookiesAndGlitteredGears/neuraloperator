@@ -83,6 +83,7 @@ class Trainer:
 
         self.model = model
         self.n_epochs = n_epochs
+        self.n_samples = 0.0
 
         self.wandb_log = wandb_log
         self.log_test_interval = log_test_interval
@@ -115,6 +116,7 @@ class Trainer:
         regularizer,
         training_loss=None,
         eval_losses=None,
+            index=None
     ):
         """Trains the given model on the given datasets.
         params:
@@ -179,59 +181,124 @@ class Trainer:
                         idx=idx, sample=sample, data_processor=self.data_processor
                     )
 
-                optimizer.zero_grad(set_to_none=True)
-                if regularizer:
-                    regularizer.reset()
 
-                if self.data_processor is not None:
-                    sample = self.data_processor.preprocess(sample)
-                else:
-                    # load data to device if no preprocessor exists
-                    sample = {
-                        k: v.to(self.device)
-                        for k, v in sample.items()
-                        if torch.is_tensor(v)
-                    }
+                def closure():
+                    # print(enumerate(train_loader)[idx])
+                    sample = [x for x in enumerate(train_loader)][idx][1]
+                    optimizer.zero_grad(set_to_none=True)
+                    if regularizer:
+                        regularizer.reset()
 
-                n_samples += sample["y"].shape[0]
+                    if self.data_processor is not None:
+                        sample = self.data_processor.preprocess(sample)
+                    else:
+                        # load data to device if no preprocessor exists
+                        sample = {
+                            k: v.to(self.device)
+                            for k, v in sample.items()
+                            if torch.is_tensor(v)
+                        }
 
-                if self.amp_autocast:
-                    with amp.autocast(enabled=True):
-                        out = self.model(**sample)
-                else:
-                    out = self.model(**sample)
-                
-                # log output shape the first time outputs are received
-                if epoch == 0 and idx == 0 and self.verbose:
-                    print(f"Raw outputs of shape {out.shape}")
 
-                if self.data_processor is not None:
-                    out, sample = self.data_processor.postprocess(out, sample)
 
-                if self.callbacks:
-                    self.callbacks.on_before_loss(out=out)
-
-                loss = 0.0
-
-                if self.overrides_loss:
-                    loss += self.callbacks.compute_training_loss(
-                        out=out, **sample, amp_autocast=self.amp_autocast
-                    )
-                else:
                     if self.amp_autocast:
                         with amp.autocast(enabled=True):
-                            loss += training_loss(out, **sample)
+                            out = self.model(**sample)
                     else:
-                        loss += training_loss(out, **sample)
+                        out = self.model(**sample)
 
-                if regularizer:
-                    loss += regularizer.loss
+                    # log output shape the first time outputs are received
+                    if epoch == 0 and idx == 0 and self.verbose:
+                        print(f"Raw outputs of shape {out.shape}")
 
-                loss.backward()
+                    if self.data_processor is not None:
+                        out, sample = self.data_processor.postprocess(out, sample)
 
-                del out
+                    if self.callbacks:
+                        self.callbacks.on_before_loss(out=out)
 
-                optimizer.step()
+                    loss = 0.0
+
+                    if self.overrides_loss:
+                        loss += self.callbacks.compute_training_loss(
+                            out=out, **sample, amp_autocast=self.amp_autocast
+                        )
+                    else:
+                        if self.amp_autocast:
+                            with amp.autocast(enabled=True):
+                                loss += training_loss(out, **sample)
+                        else:
+                            loss += training_loss(out, **sample)
+
+                    if regularizer:
+                        loss += regularizer.loss
+
+                    loss.backward()
+
+                    del out
+
+                    myLoss.append(loss)
+                    return loss
+
+                if not optimizer.__class__.__name__ == 'LBFGS':
+                    optimizer.zero_grad(set_to_none=True)
+                    if regularizer:
+                        regularizer.reset()
+
+                    if self.data_processor is not None:
+                        sample = self.data_processor.preprocess(sample)
+                    else:
+                        # load data to device if no preprocessor exists
+                        sample = {
+                            k: v.to(self.device)
+                            for k, v in sample.items()
+                            if torch.is_tensor(v)
+                        }
+
+                    n_samples += sample["y"].shape[0]
+
+                    if self.amp_autocast:
+                        with amp.autocast(enabled=True):
+                            out = self.model(**sample)
+                    else:
+                        out = self.model(**sample)
+
+                    # log output shape the first time outputs are received
+                    if epoch == 0 and idx == 0 and self.verbose:
+                        print(f"Raw outputs of shape {out.shape}")
+
+                    if self.data_processor is not None:
+                        out, sample = self.data_processor.postprocess(out, sample)
+
+                    if self.callbacks:
+                        self.callbacks.on_before_loss(out=out)
+
+                    loss = 0.0
+
+                    if self.overrides_loss:
+                        loss += self.callbacks.compute_training_loss(
+                            out=out, **sample, amp_autocast=self.amp_autocast
+                        )
+                    else:
+                        if self.amp_autocast:
+                            with amp.autocast(enabled=True):
+                                loss += training_loss(out, **sample)
+                        else:
+                            loss += training_loss(out, **sample)
+
+                    if regularizer:
+                        loss += regularizer.loss
+
+                    loss.backward()
+
+                    del out
+
+                    optimizer.step()
+                else:
+                    myLoss = []
+                    n_samples += sample["y"].shape[0]
+                    optimizer.step(closure)
+                    loss = torch.sum(torch.tensor(myLoss))
                 train_err += loss.item()
 
                 with torch.no_grad():

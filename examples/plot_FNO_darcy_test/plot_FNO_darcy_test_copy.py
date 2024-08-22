@@ -44,9 +44,9 @@ sys.stdout = open(f'./output/{current_date}/log_file.txt', 'w')
 #         test_batch_sizes=[32, 32],
 #         positional_encoding=True
 # )
-train_resolution = 64
+train_resolution = 16
 
-test_resolution = 64
+test_resolution = 16
 train_loader, test_loaders, data_processor = load_darcy_flow_small(
         n_train=1000, batch_size=32,
         train_resolution=train_resolution,
@@ -101,9 +101,14 @@ sys.stdout.flush()
 
 # %%
 #Create the optimizer
-optimizer = torch.optim.AdamW(model.parameters(),
-                                lr=8e-3, 
-                                weight_decay=1e-4)
+# optimizer = torch.optim.Adam(model.parameters(),
+#                                 lr=8e-3,
+#                                 weight_decay=1e-4)
+# scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=30)
+optimizer = torch.optim.LBFGS(model.parameters(),
+                                lr=8e-3,
+                                max_iter=20,
+                              history_size=100)
 scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=30)
 
 
@@ -130,7 +135,7 @@ sys.stdout.flush()
 # %% 
 # Create the trainer
 trainer = Trainer(model=model,
-                  n_epochs=301,
+                  n_epochs=300,
                   device=device,
                   data_processor=data_processor,
                   wandb_log=False,
