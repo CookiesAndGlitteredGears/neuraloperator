@@ -25,6 +25,7 @@ from neuralop import LpLoss, H1Loss
 
 
 np.random.seed(0)
+torch.manual_seed(0)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 current_date = datetime.datetime.now().strftime('%Y_%b_%d_%H_%M_%S')
 if not os.path.exists('./output'): os.mkdir('./output')
@@ -47,7 +48,11 @@ data_processor = data_processor.to(device)
 # %%
 # We create a tensorized FNO model
 
-model = TFNO(n_modes=(16, 16), in_channels=1, hidden_channels=32, projection_channels=64, factorization='tucker', rank=0.42)
+model = TFNO(n_modes=(16, 16),
+             hidden_channels=32,
+             projection_channels=64,
+             factorization='tucker',
+             rank=0.42)
 model = model.to(device)
 
 n_params = count_model_params(model)
@@ -86,11 +91,11 @@ sys.stdout.flush()
 
 # %% 
 # Create the trainer
-trainer = Trainer(model=model, n_epochs=20,
+trainer = Trainer(model=model, n_epochs=21,
                   device=device,
                   data_processor=data_processor,
                   wandb_log=False,
-                  eval_interval=3,
+                  log_test_interval=10,
                   use_distributed=False,
                   verbose=True)
 

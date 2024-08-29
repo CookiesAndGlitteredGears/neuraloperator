@@ -59,9 +59,9 @@ train_loader, test_loaders, data_processor = load_darcy_flow_small(
 # randomly pick indexes of a sample
 
 
-train_loader.dataset.y, train_loader.dataset.x = train_loader.dataset.x, train_loader.dataset.y
-test_loaders[test_resolution].dataset.y, test_loaders[test_resolution].dataset.x = test_loaders[test_resolution].dataset.x, test_loaders[test_resolution].dataset.y
-
+# train_loader.dataset.y, train_loader.dataset.x = train_loader.dataset.x, train_loader.dataset.y
+# test_loaders[test_resolution].dataset.y, test_loaders[test_resolution].dataset.x = test_loaders[test_resolution].dataset.x, test_loaders[test_resolution].dataset.y
+#
 
 
 
@@ -84,15 +84,14 @@ data_processor = data_processor.to(device)
 #              in_channels=3,
 #              out_channels=1
 #              )
-model = TFNO(n_modes=(16,16),
+model = TFNO(n_modes=(16, 16),
              hidden_channels=32,
              projection_channels=64,
              factorization='tucker',
-             rank=0.42,
-             # in_channels=3,
-             # out_channels=1
-             )
+             rank=0.42)
 model = model.to(device)
+
+
 
 n_params = count_model_params(model)
 print(f'\nOur model has {n_params} parameters.')
@@ -100,16 +99,18 @@ sys.stdout.flush()
 
 
 # %%
+adam_epochs, adam_lr = 501, 0.01
+lbfgs_epochs, lbfgs_max_iter, lbfgs_lr = 21, 21, 5e-3
 #Create the optimizer
-# optimizer = torch.optim.Adam(model.parameters(),
-#                                 lr=8e-3,
-#                                 weight_decay=1e-4)
-# scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=30)
-optimizer = torch.optim.LBFGS(model.parameters(),
-                                lr=8e-3,
-                                max_iter=20,
-                              history_size=100)
+optimizer = torch.optim.Adam(model.parameters(),
+                                lr=adam_lr,
+                                weight_decay=1e-4)
 scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=30)
+# optimizer = torch.optim.LBFGS(model.parameters(),
+#                                 lr=8e-3,
+#                                 max_iter=5,
+#                                 history_size=100)
+# scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=30)
 
 
 # %%
@@ -135,7 +136,7 @@ sys.stdout.flush()
 # %% 
 # Create the trainer
 trainer = Trainer(model=model,
-                  n_epochs=300,
+                  n_epochs=adam_epochs,
                   device=device,
                   data_processor=data_processor,
                   wandb_log=False,
@@ -152,6 +153,42 @@ trainer.train(train_loader=train_loader,
               optimizer=optimizer,
               scheduler=scheduler, 
               regularizer=False, 
+              training_loss=train_loss,
+              eval_losses=eval_losses)
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~#
+optimizer = torch.optim.LBFGS(model.parameters(),
+                                lr=lbfgs_lr,
+                              max_iter=lbfgs_max_iter,
+                              line_search_fn='strong_wolfe')
+scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=30)
+print('\n### MODEL ###\n', model)
+print('\n### OPTIMIZER ###\n', optimizer)
+print('\n### SCHEDULER ###\n', scheduler)
+print('\n### LOSSES ###')
+print(f'\n * Train: {train_loss}')
+print(f'\n * Test: {eval_losses}')
+sys.stdout.flush()
+
+# %%
+# Create the trainer
+trainer = Trainer(model=model,
+                  n_epochs=lbfgs_epochs,
+                  device=device,
+                  data_processor=data_processor,
+                  wandb_log=False,
+                  log_test_interval=1,
+                  use_distributed=False,
+                  verbose=True)
+
+
+# %%
+# Actually train the model on our small Darcy-Flow dataset
+
+trainer.train(train_loader=train_loader,
+              test_loaders=test_loaders,
+              optimizer=optimizer,
+              scheduler=scheduler,
+              regularizer=False,
               training_loss=train_loss,
               eval_losses=eval_losses)
 
@@ -232,7 +269,8 @@ for index in range(3):
 
 ax = fig.add_subplot(4, 1,4)
 loss_array = np.loadtxt(f'./output/{current_date}/loss_file.txt')
-ax.plot([x for x in range(len(loss_array))], loss_array)
+ax.plot([x+1 for x in range(len(loss_array))], loss_array)
+ax.axvline(x = adam_epochs, color = 'b', linestyle='dashed', label = 'adam to lbfgs epoch line')
 ax.set_title('Loss plot')
 ax.set_xlabel('epoch')
 ax.set_ylabel('loss')
